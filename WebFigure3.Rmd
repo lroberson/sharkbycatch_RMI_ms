@@ -1,0 +1,100 @@
+---
+title: "fig_datasourcecompare"
+author: "Leslie Roberson"
+date: '2022-06-16'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+library(here)
+library(tidyverse)
+library(pillar)
+library(viridis)
+library(scales)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#WebFigure 3
+Lollipop/butterfly plot with 4 facets:
+Blue shark, silky shark, tunas and billfishes, other elasmobranchs
+
+Mean difference in recorded catch per hook between observer and logbook data for the 22 vessels occurring in both data sets. Only 15 vessels had more than 5% observer coverage. Vessels with more records on top. Positive difference (circles) means observers’ average catch rate was higher; triangles signify higher catch rates in the vessels’ logbook. 
+
+```{r webfig3 plot}
+
+webfig3_dat <- read_csv(here("public_data/webfig3_dat.csv"))
+
+## prep data for plot
+glimpse(webfig3_dat)
+
+webfig3_dat <- webfig3_dat %>%
+  mutate(catch_grp=factor(catch_grp, 
+                          levels=c("blue_shark", "silky_shark", "tunas_and_billfishes", "other_sharks_and_rays"),
+                          labels=c("Blue shark", "Silky shark", "Tunas and billfish", "Other elasmobranchs")))
+webfig3_dat <- webfig3_dat %>%
+  mutate(posneg_set=case_when(
+    diff_avg_set>0~"obs higher",
+    diff_avg_set<0~"log higher",
+    diff_avg_set==0~"both zero",
+    TRUE~""),
+    posneg_hks=case_when(
+    diff_avg_1000hks>0~"obs higher",    
+    diff_avg_1000hks<0~"log higher",
+    diff_avg_1000hks==0~"both zero",
+    TRUE~""),
+    posneg_set=factor(posneg_set, c("obs higher", "log higher", "both zero", "")),
+    posneg_hks=factor(posneg_hks, c("obs higher", "log higher", "both zero", "")))
+glimpse(webfig3_dat)
+# make and order factors
+webfig3_dat$label_nsets <- factor(webfig3_dat$count_sets)
+webfig3_dat <- webfig3_dat %>%
+  mutate(vesselID=factor(vesselID),
+         vesselID=fct_reorder(vesselID, count_sets))
+levels(webfig3_dat$vesselID)
+levels(webfig3_dat$label_nsets)
+webfig3_dat <- webfig3_dat %>%
+  mutate(label_nsets=fct_reorder(label_nsets, count_sets)) # somehow they still don't order right in plot
+           
+##<>><< ##<><>>< Plot facet butterfly/Lollipop plot
+
+webfig.3 <- webfig3_dat %>%
+  # show only the 22 vessels with some observer coverage
+  filter(obs_cover_pcnt>0) %>%
+  ggplot() +
+  geom_hline(yintercept=0, color="lightgray") +
+  geom_segment(aes(x=reorder(vesselID, count_sets), xend=reorder(vesselID, count_sets), 
+                   y=0, yend=diff_avg_1000hks, color=obs_cover_pcnt), size=0.5) +
+  geom_point(aes(x=reorder(vesselID, count_sets), y=diff_avg_1000hks, color=obs_cover_pcnt, shape=posneg_hks)) +
+  facet_wrap(~catch_grp, scales="free_x") +
+  scale_x_discrete(breaks=webfig3_dat$vesselID, labels=webfig3_dat$label_nsets) +
+  scale_color_viridis_c(option="plasma",
+                        limits=c(0,20),
+                        breaks=seq(0,20,5),
+                        guide = guide_colorbar(direction = "horizontal",  title.position = "top")) +
+  scale_shape(labels=c('Observer counts higher', 'Logbook counts higher'),
+              guide = guide_legend(direction = "vertical", title.position = "top")) +
+  coord_flip() +
+  labs(y="Difference in counts per 1000 hooks", x="Recorded sets per vessel", color="Sets observed (%)", shape="") +
+  theme_bw() +
+  theme(
+    axis.text.y=element_blank(),
+    axis.ticks.y=element_blank(),
+        panel.grid=element_blank(),
+        strip.background = element_rect(fill="white"),
+        legend.position="top",
+        legend.key.height = unit(dev.size()[1] / 55, "inches"), # reduce thickness of color bar in legend
+        legend.title=element_text(size=8),
+        legend.text = element_text(size=8),
+        legend.margin=margin(t=-0.1,b=-0.1, r=0.5, l=0.5, unit='cm')
+        )
+webfig.3
+
+ggsave(plot=webfig.3, 
+       filename=here("webfig3.png"),
+       dpi=300,
+       device=NULL)
+
+```
+
