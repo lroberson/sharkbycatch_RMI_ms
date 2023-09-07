@@ -1,0 +1,74 @@
+---
+title: "fig pyramid butterfly cpue and obs coverage"
+author: "Leslie Roberson"
+date: '2022-06-16'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+library(pillar)
+library(ggthemes)
+library(here)
+library(tidyverse)
+library(viridis)
+library(scales)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## webfig 1 butterfly plot
+only showing more active vessels (>100 recorded sets) = 31 of the 39 vessels
+some final formatting done in Adobe Illustrator
+
+```{r webfig 1 butterfly plot}
+
+# load plot data
+webfig1.dat <- read_csv(here("webfig1_dat.csv"))
+
+# prep plot
+options(scipen = 999)  # turns off scientific notation
+
+# make a factor for number of sets so I can label the axis with it
+webfig1.dat$label_nsets <- factor(webfig1.dat$count_sets)
+
+# format the facet titles
+webfig1.dat <- webfig1.dat %>% 
+  mutate(catch_grp=case_when(catch_grp=="blue_shark"~"Blue shark", catch_grp=="silky_shark"~"Silky shark", TRUE~as.character(catch_grp)))
+
+webfig1 <- ggplot() +
+  geom_col(data = webfig1.dat[webfig1.dat$catch_grp=="Blue shark",],
+                 aes(x=reorder(vesselID, count_sets), y=-spc_avg_1000hks, fill=obs_cover_pcnt), width = 0.7) +
+  geom_col(data = webfig1.dat[webfig1.dat$catch_grp=="Silky shark",],
+                 aes(x=reorder(vesselID, count_sets), y=spc_avg_1000hks, fill=obs_cover_pcnt), width = 0.7)+
+  # add dummy data so that axes extend past hte bars on each side but keep no space after 0
+  geom_blank(data = webfig1.dat[webfig1.dat$catch_grp=="Blue shark",],
+             aes(y = -0.75)) +
+  geom_blank(data = webfig1.dat[webfig1.dat$catch_grp=="Silky shark",],
+             aes(y = 0.75)) +
+  facet_wrap(~catch_grp, nrow=1, scales="free_x") +
+  labs(fill="Observer \ndata (%)", y="Average count per 1000 hooks", x="Number of sets by vessel") +
+  # label y axis with number of vessel's sets instead of hte vessel ID
+  scale_x_discrete(breaks=webfig1.dat$vesselID, labels=webfig1.dat$label_nsets) +
+  scale_y_continuous(expand=c(0,0)) +
+  coord_flip() +
+  scale_fill_viridis_c(option="plasma",
+                       limits=c(0,20), # to make the high values darker yellow/easier to see
+                        breaks=seq(0,20,5)) + 
+  theme_bw() +
+  theme(panel.grid=element_blank(),
+        axis.text.x = element_blank(), # add in illusrtator so the left side doesn't show as negative
+        axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)), # add space to add the numbers in illustrator
+        legend.position=c(0.85, 0.35),
+        legend.title=element_text(size=9),
+        legend.box.background = element_rect(size=0.8, color="black"),
+        legend.key.width = unit(dev.size()[1] / 45, "inches"), # reduce thickness of color bar in legend
+        strip.background = element_rect(fill = "white", color="black")) 
+
+ggsave(plot=webfig1,
+       filename="webfig1.png",
+       width=5.5, height=5, units="in", dpi=300)
+
+
+```
+

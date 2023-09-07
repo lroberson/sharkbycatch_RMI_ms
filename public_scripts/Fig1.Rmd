@@ -1,0 +1,179 @@
+---
+title: "vessel reg coeff plots"
+author: "Leslie Roberson"
+date: '2022-06-06'
+output: html_document
+---
+
+figure for the main text
+showing positive v negative coefficient values and whether it was significant or not
+
+```{r setup, include=FALSE}
+
+library(tidyverse)
+library(here)
+library(pillar)
+library(cowplot)
+library(patchwork) 
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Make plot data
+```{r make plot data}
+### <><> make plot data
+log.cfs <- read_csv(here("public_data/log_vslcofs.csv"))
+glimpse(log.cfs)
+log.cfs$source <- "Logbook"
+obs.cfs <-  read_csv(here("public_data/obs_vslcofs.csv"))
+obs.cfs$source <- "Observer"
+
+vsl.cfs <- bind_rows(log.cfs, obs.cfs)
+vsl.cfs <- vsl.cfs %>% rename(cf='Estimate')
+
+vsl.cfs %>% group_by(source, species) %>% summarise(min=min(cf), max=max(cf))
+# since I've constrained the vessel cfs (by penalizing), don't normalize outputs
+
+## quick explore
+vsl.cfs %>%
+  mutate(posneg=case_when(cf==0~"zero",
+                            cf<0~"negative",
+                            cf>0~"positive",
+                            TRUE~"NA"),
+           psignif=case_when(p_val<0.05~as.character("Yes"), TRUE~as.character("No"))) %>%
+    ggplot(aes(x=param, y=cf)) +
+    geom_point(aes(color=psignif, shape=posneg), size=2) +
+    geom_errorbar(aes(y=cf, ymin=cf-std_err, ymax=cf+std_err, color=psignif)) +
+    facet_grid(species~source, scales="free") +
+    geom_hline(yintercept=0) +
+    labs(y="Regression coefficient", shape="", color="p<0.005") +
+    theme_bw() + 
+    theme(axis.text.x = element_text(angle=45)) +
+  guides(color="none", shape="none") 
+
+#<><>< Make each of the 4 panels separately so I can order by coefficient rank
+vsl.cfs <- vsl.cfs %>%
+  mutate(posneg=case_when(cf==0~"zero",
+                            cf<0~"negative",
+                            cf>0~"positive",
+                            TRUE~"NA"),
+           psignif=case_when(p_val<0.05~as.character("Yes"), TRUE~as.character("No"))) 
+vsl.cfs$psignif <- factor(vsl.cfs$psignif)
+
+vsl.cfs %>%
+  group_by(source) %>%
+  summarise(n_cfs=n_distinct(param)) %>%
+  ungroup()
+# source    n_cfs
+# Logbook     30
+# Observer    29
+
+## save plot data
+write_csv(vsl.cfs, here("public_data/fig1_dat.csv"))
+
+```
+
+# Plot
+Separate panels for observer and logbook data
+Some final formatting done in Adobe Illustrator
+
+```{r fig 1 main text}
+
+vsl.cfs <- read_csv(here("public_data/fig1_dat.csv"))
+glimpse(vsl.cfs)
+
+vsl.cfs$psignif <- factor(vsl.cfs$psignif)
+levels(vsl.cfs$psignif)
+# use a color for yes and a grey shade for no
+pal_pval <- c("grey50", "tomato2")
+
+vsl.cfs %>% group_by(source, species) %>% summarise(min=min(cf-std_err), max=max(cf+std_err))
+range.log <- c(-4.5, 3.5)
+range.obs <- c(-3.1, 4.9)
+
+log.blue <- vsl.cfs %>%
+  filter(species=="Blue" & source=="Logbook") %>%
+  mutate(positiony=max(cf+std_err)) %>%
+  ggplot(aes(x=reorder(param, cf), y=cf)) +
+    geom_point(aes(color=psignif), size=2) +
+    geom_errorbar(aes(y=cf, ymin=cf-std_err, ymax=cf+std_err, color=psignif), linewidth=0.2) +
+    geom_hline(yintercept=0) +
+    scale_y_continuous(limits=range.log) +
+    annotate("text", label="Blue shark\nlogbook data", x=10, y=3, size=2) +
+    scale_color_manual(values=pal_pval) +
+    labs(y="", x= "", color="") + # add legend title in Illustrator with italic p, add shared y axis label, add species icons
+    theme_bw() + 
+    theme(axis.text.x = element_blank(),
+          plot.margin = unit(c(0, 0, 0, 0), "cm"),
+          panel.grid=element_blank()) +
+  guides(color="none")
+log.blue
+
+log.silky <- vsl.cfs %>%
+  filter(species=="Silky" & source=="Logbook") %>%
+  ggplot(aes(x=reorder(param, cf), y=cf)) +
+    geom_point(aes(color=psignif), size=2) +
+    geom_errorbar(aes(y=cf, ymin=cf-std_err, ymax=cf+std_err, color=psignif), linewidth=0.2) +
+    geom_hline(yintercept=0) +
+    scale_y_continuous(limits=range.log) +
+    annotate("text", label="Silky shark\nlogbook data", x=10, y=3, size=2) +
+    scale_color_manual(values=pal_pval) +
+    labs(y="", x= "", color="") + 
+    theme_bw() + 
+    theme(axis.text.x = element_blank(),
+          plot.margin = unit(c(0, 0, 0, 0), "cm"),
+          panel.grid=element_blank()) +
+  guides(color="none")
+log.silky
+
+obs.blue <- vsl.cfs %>%
+  filter(species=="Blue" & source=="Observer") %>%
+  ggplot(aes(x=reorder(param, cf), y=cf)) +
+    geom_point(aes(color=psignif), size=2) +
+    geom_errorbar(aes(y=cf, ymin=cf-std_err, ymax=cf+std_err, color=psignif), linewidth=0.2) +
+    geom_hline(yintercept=0) +
+    scale_y_continuous(limits=range.obs) +
+    annotate("text", label="Blue shark\nobserver data", x=10, y=4.5, size=2) +
+    scale_color_manual(values=pal_pval) +
+    labs(y="", x= "", color="") + 
+    theme_bw() + 
+    theme(axis.text.x = element_blank(),
+          plot.margin = unit(c(0, 0, 0, 0), "cm"),
+          panel.grid=element_blank()) +
+  guides(color="none")
+obs.blue
+
+obs.silky <- vsl.cfs %>%
+  filter(species=="Silky" & source=="Observer") %>%
+  ggplot(aes(x=reorder(param, cf), y=cf)) +
+    geom_point(aes(color=psignif), size=2) +
+    geom_errorbar(aes(y=cf, ymin=cf-std_err, ymax=cf+std_err, color=psignif), linewidth=0.2) +
+    geom_hline(yintercept=0) +
+    scale_y_continuous(limits=range.obs) +
+    annotate("text", label="Silky shark\nobserver data", x=10, y=4.5, size=2) +
+    scale_color_manual(values=pal_pval) +
+    labs(y="", x= "", color="") + 
+    theme_bw() + 
+    #plot_annotation(tag_levels = "D)") +
+    theme(axis.text.x = element_blank(),
+          plot.margin = unit(c(0, 0, 0, 0), "cm"),
+          panel.grid=element_blank()) +
+  guides(color="none")
+obs.silky
+
+## arrange plots
+fig1 <- log.blue + log.silky + obs.blue + obs.silky +  patchwork::plot_layout(nrow=2, ncol=2, width=c(1, 1))
+fig1
+
+plot_grid(log.blue, log.silky, obs.blue, obs.silky,
+          ncol = 2, align = "hv",
+         labels = c("A)", "B)", "C)", "D)"))
+
+ggsave(plot=last_plot(), 
+       filename=here("fig1.png"),
+       width = 6, height = 6, units = "in", dpi = 600)
+```
+
+
+
+

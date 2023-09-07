@@ -1,0 +1,77 @@
+---
+title: "Fig3"
+author: "Leslie Roberson"
+date: "2023-09-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+library(tidyverse)
+library(pillar)
+library(here)
+library(plotrix)
+library(RColorBrewer)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Main text figure 1
+All data sources
+colored by quantile
+SE bars
+For readability only show vessels with >9 shots (37 of 39 vessels)
+some final formatting done in Adobe illustrator
+
+```{r main text fig 1}
+
+shot.dat <- read_csv(here("public_data/shot_dat_vsl_regcoeffs.csv"))
+glimpse(shot.dat)
+
+fig3.dat <- shot.dat %>%
+    group_by(vesselID, datasource, species, quart) %>%
+    summarise(n_shots=n_distinct(set_id),
+              avg_hks1000 = mean(hooks1000),
+              avg_target = mean(tarcatch4),
+              se_target= plotrix::std.error(tarcatch4),
+              avg_bycatch = mean(catch_cnt),
+              se_bycatch = plotrix::std.error(catch_cnt)) %>%
+    ungroup() %>%
+    filter(n_shots>9) 
+
+n_distinct(fig3.dat$vesselID)
+glimpse(fig3.dat)
+write_csv(fig3.dat, here("fig3_dat.csv"))
+
+fig3.dat$datasource <- factor(fig3.dat$datasource, levels=c("Logbook", "Observer", "EM"))
+
+colors4 <- colorRampPalette(brewer.pal(4, "RdYlBu"))(4)
+
+fig3 <- fig3.dat %>%
+    ggplot() +
+    geom_jitter(aes(x=avg_target/avg_hks1000, y=avg_bycatch/avg_hks1000, color=quart)) +
+    geom_errorbar(aes(x=avg_target/avg_hks1000, y=avg_bycatch/avg_hks1000, ymin=avg_bycatch/avg_hks1000-se_bycatch/avg_hks1000, ymax=avg_bycatch/avg_hks1000+se_bycatch/avg_hks1000, color=quart),
+                  size=0.2) +
+    geom_errorbar(aes(x=avg_target/avg_hks1000, y=avg_bycatch/avg_hks1000, xmin=avg_target/avg_hks1000-se_target/avg_hks1000, xmax=avg_target/avg_hks1000+se_target/avg_hks1000, color=quart),
+                  size=0.2) +
+  # use facet wrap so I can control scales, but have to do labels in illustrator (won't do them as facet_grid does)
+   facet_wrap(~datasource~species, scales="free", nrow=3) +
+  coord_flip() +
+  labs(x="Target catch (count per 1000 hooks)", y="Shark catch (count per 1000 hooks)", color="Vessel coefficient quantile") +
+  scale_color_manual(values=rev(colors4)) + # more neg=blues, more pos=reds
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        #for MS version, removed facet labels and formatted in illustrator
+        #strip.text=element_blank(), 
+        strip.background = element_rect(fill="white"),
+        legend.position="right",
+        legend.title=element_blank()
+        ) 
+fig3
+
+ggsave(plot=last_plot(), 
+       filename=here("fig3.png"),
+       width = 6, height = 6, units = "in", dpi = 600)
+
+```
+
